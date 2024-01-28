@@ -9,10 +9,13 @@ export class AuthManager {
     private readonly realmName: string | null = null;
 
     private readonly redirectUri: string | null = null;
-    public constructor(authServer: string, realmName: string, redirectUri: string) {
+    private readonly loginCallback: () => void = () => {};
+
+    public constructor(authServer: string, realmName: string, redirectUri: string, loginCallback: () => void) {
         this.authServer = authServer;
         this.realmName = realmName;
         this.redirectUri = redirectUri;
+        this.loginCallback = loginCallback;
         AuthManager.instance = this;
     }
 
@@ -46,6 +49,12 @@ export class AuthManager {
 
         return { newCodeVerifier, newCodeChallenge };
     };
+
+    public async mustBeLoggedIn(): Promise<void> {
+        if (!await this.isLoggedIn()) {
+            this.loginCallback();
+        }
+    }
     public getLoginWithGoogleUri(): string {
         // get or create codeVerifier and codeChallenge from localstorage
         const { newCodeVerifier, newCodeChallenge } = this.generatePKCEPair();
