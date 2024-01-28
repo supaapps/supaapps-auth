@@ -34,20 +34,23 @@ export class AuthManager {
         const HASH_ALG = 'sha256';
 
         // Generate code verifier
-        const codeVerifier = this.toBase64Url(
+        const newCodeVerifier = this.toBase64Url(
             randomBytes(NUM_OF_BYTES).toString('base64'),
         );
 
         // Generate code challenge
         const hash = createHash(HASH_ALG)
-            .update(codeVerifier)
+            .update(newCodeVerifier)
             .digest('base64');
-        const codeChallenge = this.toBase64Url(hash);
+        const newCodeChallenge = this.toBase64Url(hash);
 
-        return { codeVerifier, codeChallenge };
+        return { newCodeVerifier, newCodeChallenge };
     };
     public getLoginWithGoogleUri(): string {
-        const { codeVerifier, codeChallenge } = this.generatePKCEPair();
+        // get or create codeVerifier and codeChallenge from localstorage
+        const { newCodeVerifier, newCodeChallenge } = this.generatePKCEPair();
+        let codeVerifier = localStorage.getItem('codeVerifier') || newCodeVerifier;
+        let codeChallenge = localStorage.getItem('codeChallenge') || newCodeChallenge;
         localStorage.setItem('codeVerifier', codeVerifier);
         localStorage.setItem('codeChallenge', codeChallenge);
 
@@ -127,6 +130,8 @@ export class AuthManager {
                         }),
                     })
                         .then((response) => {
+                            localStorage.removeItem('codeVerifier');
+                            localStorage.removeItem('codeChallenge');
                             if (response.status !== 200) {
                                 throw new Error('Failed to exchange code for token');
                             }
@@ -138,6 +143,8 @@ export class AuthManager {
                             resolve();
                         })
                         .catch((error) => {
+                            localStorage.removeItem('codeVerifier');
+                            localStorage.removeItem('codeChallenge');
                             reject(error);
                         });
                 }
