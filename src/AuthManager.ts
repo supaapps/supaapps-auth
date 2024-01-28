@@ -9,7 +9,7 @@ export class AuthManager {
     private readonly realmName: string | null = null;
 
     private readonly redirectUri: string | null = null;
-    private constructor(authServer: string, realmName: string, redirectUri: string) {
+    public constructor(authServer: string, realmName: string, redirectUri: string) {
         this.authServer = authServer;
         this.realmName = realmName;
         this.redirectUri = redirectUri;
