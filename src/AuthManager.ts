@@ -53,7 +53,7 @@ export class AuthManager {
 
         if (this.authServer && this.realmName && this.redirectUri) {
             return  `${this.authServer}auth/login_with_google?realm_name=${this.realmName}` +
-                `&redirect_uri=${encodeURIComponent(this.realmName )}&code_challenge=${codeChallenge}&code_challenge_method=S256`
+                `&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`
         }
     }
     public async isLoggedIn(): Promise<boolean> {
