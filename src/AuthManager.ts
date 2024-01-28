@@ -50,11 +50,18 @@ export class AuthManager {
         return { newCodeVerifier, newCodeChallenge };
     };
 
-    public async mustBeLoggedIn(): Promise<void> {
-        if (!await this.isLoggedIn()) {
-            this.loginCallback();
-        }
+    public async mustBeLoggedIn(): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            this.isLoggedIn().then((isLoggedIn) => {
+                if (!isLoggedIn) {
+                    this.loginCallback();
+                    return resolve(false);
+                }
+                return resolve(true);
+            });
+        });
     }
+
     public getLoginWithGoogleUri(): string {
         // get or create codeVerifier and codeChallenge from localstorage
         const { newCodeVerifier, newCodeChallenge } = this.generatePKCEPair();
