@@ -13,6 +13,7 @@ export class AuthManager {
         this.authServer = authServer;
         this.realmName = realmName;
         this.redirectUri = redirectUri;
+        AuthManager.instance = this;
     }
 
     public static getInstance<T>(): AuthManager{
