@@ -170,4 +170,30 @@ export class AuthManager {
         });
     }
 
+    public async logout(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                const bearerToken = localStorage.getItem('access_token');
+                fetch(`${this.authServer}auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${bearerToken}`,
+                    },
+                }).then((response) => {
+                    if (response.status !== 200) {
+                        throw new Error('Failed to attempt logout')
+                    }
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    resolve();
+                }).catch((error) => {
+                    reject(error);
+                })
+            } catch (error) {
+                reject(error);
+            }
+        })
+    }
+
 }

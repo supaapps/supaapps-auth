@@ -58,3 +58,14 @@ Get login uri
 ```ts
 AuthManager.getInstance().getLoginWithGoogleUri()
 ```
+
+
+- Log user out
+
+```ts
+await authManager.logout();
+// or
+authManager.logout().then(() => {
+  // user is now logged out
+})
+```
