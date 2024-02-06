@@ -50,6 +50,40 @@ export class AuthManager {
         return { newCodeVerifier, newCodeChallenge };
     };
 
+    private async refreshAccessToken(): Promise<void> {
+        return new Promise((resolve,reject) => {
+            try {
+                const refreshToken = localStorage.getItem('refresh_token');
+                fetch(`${this.authServer}auth/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        refresh_token: refreshToken,
+                    }),
+                })
+                    .then((response) => {
+                        if (response.status !== 200) {
+                            throw new Error('Failed to refresh the token');
+                        }
+                        return response.json();
+                    })
+                    .then((exchangeJson) => {
+                        localStorage.setItem('refresh_token', exchangeJson.refresh_token);
+                        localStorage.setItem('access_token', exchangeJson.access_token);
+                        resolve();
+                    })
+                    .catch((error) => {
+                        reject(error);
+                    });
+            }
+            catch (error){
+                reject(error);
+            }
+        })
+    }
+
     public async mustBeLoggedIn(): Promise<boolean> {
         return new Promise((resolve, reject) => {
             this.isLoggedIn().then((isLoggedIn) => {
@@ -88,9 +122,8 @@ export class AuthManager {
                 if (decodedToken) {
                     const currentTime = Date.now() / 1000;
                     if (decodedToken.exp < currentTime) {
-                        // add refresh check here instead and
-                        localStorage.removeItem('access_token');
-                        return resolve(false);
+                        // add refresh check here
+                        this.refreshAccessToken();
                     }
                 }
 
@@ -115,9 +148,8 @@ export class AuthManager {
                 if (decodedToken) {
                     const currentTime = Date.now() / 1000;
                     if (decodedToken.exp < currentTime) {
-                        // add refresh check here instead and
-                        localStorage.removeItem('access_token');
-                        throw new Error('Access token expired');
+                        // add refresh check here
+                        this.refreshAccessToken();
                     }
                 }
 
