@@ -58,3 +58,17 @@ Get login uri
 ```ts
 AuthManager.getInstance().getLoginWithGoogleUri()
 ```
+
+- Validate access token
+
+```typescript
+import { AuthManager } from './AuthManager';
+
+const isValid = await AuthManager.validateToken(BEARER_HEADER_OR_ACCESS_TOKEN)
+// or
+AuthManager.validateToken(BEARER_OR_ACCESS_TOKEN).then((isValid) => {
+  if (isValid) {
+    // token is valid
+  }
+})
+```
