@@ -170,26 +170,30 @@ export class AuthManager {
         });
     }
 
-    public static async validateToken(bearerToken: string): Promise<boolean> {
-        return new Promise((resolve, reject) => {
+    public static async validateToken(authServer: string, bearerToken: string): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
             try {
-                const token = bearerToken.includes('Bearer ') ? bearerToken.replace('Bearer ', '') : bearerToken;
-                if (!token) {
-                    return resolve(false);
-                }
-                // decode access token and check if it's expired
-                const decodedToken = token ? JSON.parse(atob(token.split('.')[1])) : null;
-                if (decodedToken) {
-                    const currentTime = Date.now() / 1000;
-                    if (decodedToken.exp < currentTime) {
-                        return resolve(false);
+                const { data: revokedIds } = await axios.get(`${authServer}public/revoked_ids`);
+                const accessToken = bearerToken.includes('Bearer ') ? bearerToken.replace('Bearer ', '') : bearerToken;
+                const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
+                if (decodedToken && revokedIds) {
+                    if ((revokedIds as number[]).includes(decodedToken['id'])) {
+                        resolve(false);
                     }
                 }
 
-                return resolve(true);
+                const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
+                const { data: algo } = await axios.get(`${authServer}public/algo`);
+                const jwt = require('jsonwebtoken');
+                jwt.verify(bearerToken, publicKey, { algorithms: [algo] }, function (error, payload) {
+                    if (error) {
+                        return reject(error);
+                    }
+                    return resolve(true);
+                });
             } catch (error) {
                 reject(error);
             }
-        });
+        })
     }
 }
