@@ -185,7 +185,7 @@ export class AuthManager {
                 const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
                 const { data: algo } = await axios.get(`${authServer}public/algo`);
                 const jwt = require('jsonwebtoken');
-                jwt.verify(bearerToken, publicKey, { algorithms: [algo] }, function (error, payload) {
+                jwt.verify(accessToken, publicKey, { algorithms: [algo] }, function (error, payload) {
                     if (error) {
                         return reject(error);
                     }
