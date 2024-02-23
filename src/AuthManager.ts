@@ -173,23 +173,31 @@ export class AuthManager {
     public static async validateToken(authServer: string, bearerToken: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
-                const { data: revokedIds } = await axios.get(`${authServer}public/revoked_ids`);
                 const accessToken = bearerToken.includes('Bearer ') ? bearerToken.replace('Bearer ', '') : bearerToken;
                 const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
-                if (decodedToken && revokedIds) {
-                    if ((revokedIds as number[]).includes(decodedToken['id'])) {
-                        resolve(false);
-                    }
+
+                if (!decodedToken) {
+                    return resolve(false);
+                }
+
+                const currentTime = Date.now() / 1000;
+                if (decodedToken.exp < currentTime) {
+                    return resolve(false);
                 }
 
                 const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
                 const { data: algo } = await axios.get(`${authServer}public/algo`);
                 const jwt = require('jsonwebtoken');
-                jwt.verify(accessToken, publicKey, { algorithms: [algo] }, function (error, payload) {
+                jwt.verify(accessToken, publicKey, { algorithms: [algo] }, (error, payload) => {
                     if (error) {
-                        return reject(error);
+                        return resolve(false);
                     }
-                    return resolve(true);
+                    axios.get(`${authServer}public/revoked_ids`).then(({ data: revokedIds }) => {
+                        if (revokedIds && (revokedIds as number[]).includes(decodedToken['id'])) {
+                            return resolve(false);
+                        }
+                        return resolve(true);
+                    });
                 });
             } catch (error) {
                 reject(error);
