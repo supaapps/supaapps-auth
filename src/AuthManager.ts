@@ -28,9 +28,9 @@ export class AuthManager {
 
     private  toBase64Url = (base64String: string) => {
         return base64String
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
     };
     private  generatePKCEPair = () => {
         const NUM_OF_BYTES = 32; // This will generate a verifier of sufficient length
@@ -38,13 +38,13 @@ export class AuthManager {
 
         // Generate code verifier
         const newCodeVerifier = this.toBase64Url(
-            randomBytes(NUM_OF_BYTES).toString('base64'),
+          randomBytes(NUM_OF_BYTES).toString('base64'),
         );
 
         // Generate code challenge
         const hash = createHash(HASH_ALG)
-            .update(newCodeVerifier)
-            .digest('base64');
+          .update(newCodeVerifier)
+          .digest('base64');
         const newCodeChallenge = this.toBase64Url(hash);
 
         return { newCodeVerifier, newCodeChallenge };
@@ -72,7 +72,7 @@ export class AuthManager {
 
         if (this.authServer && this.realmName && this.redirectUri) {
             return  `${this.authServer}auth/login_with_google?realm_name=${this.realmName}` +
-                `&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`
+              `&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`
         }
     }
     public async isLoggedIn(): Promise<boolean> {
@@ -145,24 +145,24 @@ export class AuthManager {
                             code_verifier: codeVerifier,
                         }),
                     })
-                        .then((response) => {
-                            localStorage.removeItem('codeVerifier');
-                            localStorage.removeItem('codeChallenge');
-                            if (response.status !== 200) {
-                                throw new Error('Failed to exchange code for token');
-                            }
-                            return response.json();
-                        })
-                        .then((exchangeJson) => {
-                            localStorage.setItem('access_token', exchangeJson.access_token);
-                            localStorage.setItem('refresh_token', exchangeJson.refresh_token);
-                            resolve();
-                        })
-                        .catch((error) => {
-                            localStorage.removeItem('codeVerifier');
-                            localStorage.removeItem('codeChallenge');
-                            reject(error);
-                        });
+                      .then((response) => {
+                          localStorage.removeItem('codeVerifier');
+                          localStorage.removeItem('codeChallenge');
+                          if (response.status !== 200) {
+                              throw new Error('Failed to exchange code for token');
+                          }
+                          return response.json();
+                      })
+                      .then((exchangeJson) => {
+                          localStorage.setItem('access_token', exchangeJson.access_token);
+                          localStorage.setItem('refresh_token', exchangeJson.refresh_token);
+                          resolve();
+                      })
+                      .catch((error) => {
+                          localStorage.removeItem('codeVerifier');
+                          localStorage.removeItem('codeChallenge');
+                          reject(error);
+                      });
                 }
             } catch (error) {
                 reject(error);
@@ -196,4 +196,38 @@ export class AuthManager {
         })
     }
 
+    public static async validateToken(authServer: string, bearerToken: string): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            try {
+                const accessToken = bearerToken.includes('Bearer ') ? bearerToken.replace('Bearer ', '') : bearerToken;
+                const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
+
+                if (!decodedToken) {
+                    return resolve(false);
+                }
+
+                const currentTime = Date.now() / 1000;
+                if (decodedToken.exp < currentTime) {
+                    return resolve(false);
+                }
+
+                const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
+                const { data: algo } = await axios.get(`${authServer}public/algo`);
+                const jwt = require('jsonwebtoken');
+                jwt.verify(accessToken, publicKey, { algorithms: [algo] }, (error, payload) => {
+                    if (error) {
+                        return resolve(false);
+                    }
+                    axios.get(`${authServer}public/revoked_ids`).then(({ data: revokedIds }) => {
+                        if (revokedIds && (revokedIds as number[]).includes(decodedToken['id'])) {
+                            return resolve(false);
+                        }
+                        return resolve(true);
+                    });
+                });
+            } catch (error) {
+                reject(error);
+            }
+        })
+    }
 }
