@@ -174,6 +174,8 @@ export class AuthManager {
         return new Promise((resolve, reject) => {
             try {
                 const bearerToken = localStorage.getItem('access_token');
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
                 fetch(`${this.authServer}auth/logout`, {
                     method: 'POST',
                     headers: {
@@ -184,8 +186,6 @@ export class AuthManager {
                     if (response.status !== 200) {
                         throw new Error('Failed to attempt logout')
                     }
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('refresh_token');
                     resolve();
                 }).catch((error) => {
                     reject(error);
