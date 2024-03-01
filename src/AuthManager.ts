@@ -107,7 +107,7 @@ export class AuthManager {
                     if (decodedToken.exp < currentTime) {
                         // refreshing expired token
                         const newAccessToken = await this.refreshAccessToken();
-                        return newAccessToken;
+                        return resolve(newAccessToken);
                     }
                 }
                 resolve(accessToken);
