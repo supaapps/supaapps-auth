@@ -145,9 +145,9 @@ export class AuthManager {
 
     public async isLoggedIn(): Promise<boolean> {
         // todo here: check if refresh token is expired and if so, try to refresh, then update token
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             try {
-                this.checkAccessToken();
+                await this.checkAccessToken();
                 return resolve(true);
             } catch (error) {
                 reject(error);
