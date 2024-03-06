@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { createHash, randomBytes } from 'crypto';
 
-
 export class AuthManager {
     private static instance: AuthManager | null = null;
     private readonly authServer: string | null = null;
@@ -50,6 +49,74 @@ export class AuthManager {
         return { newCodeVerifier, newCodeChallenge };
     };
 
+    private async refreshAccessToken(): Promise<string> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const refreshToken: string | null = localStorage.getItem('refresh_token');
+                if (!refreshToken) {
+                    throw new Error('No refresh token found');
+                }
+                const decodedRefreshToken = JSON.parse(atob(refreshToken.split('.')[1]));
+                if (decodedRefreshToken) {
+                    const currentTime = Date.now() / 1000;
+                    if (decodedRefreshToken.exp < currentTime) {
+                        throw new Error('Refresh token expired');
+                    }
+                }
+                await fetch(`${this.authServer}auth/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        refresh_token: refreshToken,
+                    }),
+                })
+                    .then((response) => {
+                        if (response.status !== 200) {
+                            throw new Error('Failed to refresh the token');
+                        }
+                        return response.json();
+                    })
+                    .then((exchangeJson) => {
+                        localStorage.setItem('refresh_token', exchangeJson.refresh_token);
+                        localStorage.setItem('access_token', exchangeJson.access_token);
+                        resolve(exchangeJson.access_token);
+                    })
+                    .catch((error) => {
+                        reject(error);
+                    });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+    private async checkAccessToken(): Promise<string> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const accessToken: string | null = localStorage.getItem('access_token');
+                if (!accessToken) {
+                    throw new Error('No access token found');
+                }
+                // decode access token and check if it's expired
+                const decodedToken = accessToken
+                    ? JSON.parse(atob(accessToken.split('.')[1]))
+                    : null;
+                if (decodedToken) {
+                    const currentTime = Date.now() / 1000;
+                    if (decodedToken.exp < currentTime) {
+                        // refreshing expired token
+                        const newAccessToken = await this.refreshAccessToken();
+                        return resolve(newAccessToken);
+                    }
+                }
+                resolve(accessToken);
+            } catch (error) {
+                reject(error);
+            }
+        })
+    }
+
     public async mustBeLoggedIn(): Promise<boolean> {
         return new Promise((resolve, reject) => {
             this.isLoggedIn().then((isLoggedIn) => {
@@ -75,25 +142,12 @@ export class AuthManager {
               `&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`
         }
     }
+
     public async isLoggedIn(): Promise<boolean> {
         // todo here: check if refresh token is expired and if so, try to refresh, then update token
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             try {
-                const accessToken: string | null = localStorage.getItem('access_token');
-                if (!accessToken) {
-                    return resolve(false);
-                }
-                // decode access token and check if it's expired
-                const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
-                if (decodedToken) {
-                    const currentTime = Date.now() / 1000;
-                    if (decodedToken.exp < currentTime) {
-                        // add refresh check here instead and
-                        localStorage.removeItem('access_token');
-                        return resolve(false);
-                    }
-                }
-
+                await this.checkAccessToken();
                 return resolve(true);
             } catch (error) {
                 reject(error);
@@ -104,22 +158,9 @@ export class AuthManager {
     public async getAccessToken(): Promise<string> {
         // todo here: check if refresh token is expired and if so, try to refresh, then update token
         // otherwise throw error
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             try {
-                const accessToken: string | null = localStorage.getItem('access_token');
-                if (!accessToken) {
-                    throw new Error('No access token found');
-                }
-                // decode access token and check if it's expired
-                const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
-                if (decodedToken) {
-                    const currentTime = Date.now() / 1000;
-                    if (decodedToken.exp < currentTime) {
-                        // add refresh check here instead and
-                        localStorage.removeItem('access_token');
-                        throw new Error('Access token expired');
-                    }
-                }
+                const accessToken = await this.checkAccessToken();
 
                 return resolve(accessToken);
             } catch (error) {
