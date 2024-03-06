@@ -59,6 +59,17 @@ Get login uri
 AuthManager.getInstance().getLoginWithGoogleUri()
 ```
 
+
+- Log user out
+
+```ts
+await authManager.logout();
+// or
+authManager.logout().then(() => {
+  // user is now logged out
+})
+```
+
 - Validate access token
 
 ```typescript
