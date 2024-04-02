@@ -91,30 +91,28 @@ export class AuthManager {
             }
         });
     }
+
     private async checkAccessToken(): Promise<string> {
         return new Promise(async (resolve, reject) => {
             try {
-                const accessToken: string | null = localStorage.getItem('access_token');
+                let accessToken: string | null = localStorage.getItem('access_token');
+
                 if (!accessToken) {
-                    throw new Error('No access token found');
-                }
-                // decode access token and check if it's expired
-                const decodedToken = accessToken
-                    ? JSON.parse(atob(accessToken.split('.')[1]))
-                    : null;
-                if (decodedToken) {
+                    accessToken = await this.refreshAccessToken();
+                } else {
+                    const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
                     const currentTime = Date.now() / 1000;
-                    if (decodedToken.exp < currentTime) {
-                        // refreshing expired token
-                        const newAccessToken = await this.refreshAccessToken();
-                        return resolve(newAccessToken);
+
+                    if (decodedToken && decodedToken.exp < currentTime) {
+                        accessToken = await this.refreshAccessToken();
                     }
                 }
+
                 resolve(accessToken);
             } catch (error) {
                 reject(error);
             }
-        })
+        });
     }
 
     public async mustBeLoggedIn(): Promise<boolean> {
