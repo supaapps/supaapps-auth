@@ -1,6 +1,7 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { AuthManager } from '../src/AuthManager';
+import { basename } from 'path';
 
 const mock = new MockAdapter(axios);
 
@@ -77,8 +78,18 @@ describe('AuthManager Tests', () => {
 
     it('logs in using PKCE and updates local storage', async () => {
       localStorage.setItem('codeVerifier', 'mockCodeVerifier');
+      /*
+            {
+            "sub": "1234567890",
+            "name": "John Doe",
+            "iat": 1516239022
+            }
+        */
+      const accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+
+
       mock.onPost('http://auth-server.com/auth/pkce_exchange').reply(200, {
-        access_token: 'validAccessToken',
+        access_token: accessToken,
         refresh_token: 'validRefreshToken'
       });
   
@@ -86,8 +97,10 @@ describe('AuthManager Tests', () => {
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
       await manager.loginUsingPkce('mockCode');
   
-      expect(localStorage.setItem).toHaveBeenCalledWith('access_token', 'validAccessToken');
+      expect(localStorage.setItem).toHaveBeenCalledWith('access_token', accessToken);
       expect(localStorage.setItem).toHaveBeenCalledWith('refresh_token', 'validRefreshToken');
+      const userSub = JSON.parse(localStorage.getItem('user') ?? '').sub;
+      expect(userSub).toEqual('1234567890');
     });
   
     it('logs out and clears local storage', async () => {

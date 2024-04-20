@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { createHash, randomBytes } from 'crypto';
-import jwt from 'jsonwebtoken';  // Ensure jsonwebtoken is correctly imported
+import {decode as jwtDecode, verify as jwtVerify} from 'jsonwebtoken';  // Ensure jsonwebtoken is correctly imported
 
 export class AuthManager {
     private static instance: AuthManager | null = null;
@@ -58,6 +58,8 @@ export class AuthManager {
 
             localStorage.setItem('refresh_token', response.data.refresh_token);
             localStorage.setItem('access_token', response.data.access_token);
+            const user = jwtDecode(response.data.access_token);
+            localStorage.setItem('user', JSON.stringify(user));
             return response.data.access_token;
         } catch (error) {
             console.error(`Refresh token error, logging out: ${error}`);
@@ -103,6 +105,13 @@ export class AuthManager {
         return this.checkAccessToken();
     }
 
+    private saveTokens(response: AxiosResponse): void {
+        localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+        const user = jwtDecode(response.data.access_token);
+        localStorage.setItem('user', JSON.stringify(user));
+    }
+
     public async loginUsingPkce(code: string): Promise<void> {
         try {
             const codeVerifier = localStorage.getItem('codeVerifier');
@@ -116,9 +125,7 @@ export class AuthManager {
                 redirect_uri: this.redirectUri,
                 code_verifier: codeVerifier,
             });
-
-            localStorage.setItem('access_token', response.data.access_token);
-            localStorage.setItem('refresh_token', response.data.refresh_token);
+            this.saveTokens(response);
         } finally {
             localStorage.removeItem('codeVerifier');
             localStorage.removeItem('codeChallenge');
@@ -141,17 +148,18 @@ export class AuthManager {
     }
 
     public static async validateToken(authServer: string, bearerToken: string): Promise<boolean> {
+        // @todo tests missing for this static validation
         try {
-            const decodedToken = jwt.decode(bearerToken, { complete: true })?.payload;
+            const decodedToken = jwtDecode(bearerToken, { complete: true })?.payload;
 
-            if (!decodedToken || decodedToken.exp < Date.now() / 1000) {
+            if (!decodedToken) {
                 return false;
             }
 
             const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
             const { data: algo } = await axios.get(`${authServer}public/algo`);
 
-            jwt.verify(bearerToken, publicKey, { algorithms: [algo] });
+            jwtVerify(bearerToken, publicKey, { algorithms: [algo] });
 
             const { data: revokedIds } = await axios.get(`${authServer}public/revoked_ids`);
             return !revokedIds.includes(decodedToken['id']);
