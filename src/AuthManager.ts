@@ -1,16 +1,15 @@
 import axios from 'axios';
 import { createHash, randomBytes } from 'crypto';
+import jwt from 'jsonwebtoken';  // Ensure jsonwebtoken is correctly imported
 
 export class AuthManager {
     private static instance: AuthManager | null = null;
-    private readonly authServer: string | null = null;
+    private authServer: string;
+    private realmName: string;
+    private redirectUri: string;
+    private loginCallback: () => void;
 
-    private readonly realmName: string | null = null;
-
-    private readonly redirectUri: string | null = null;
-    private readonly loginCallback: () => void = () => {};
-
-    public constructor(authServer: string, realmName: string, redirectUri: string, loginCallback: () => void) {
+    private constructor(authServer: string, realmName: string, redirectUri: string, loginCallback: () => void) {
         this.authServer = authServer;
         this.realmName = realmName;
         this.redirectUri = redirectUri;
@@ -18,255 +17,151 @@ export class AuthManager {
         AuthManager.instance = this;
     }
 
-    public static getInstance<T>(): AuthManager{
+    public static initialize(authServer: string, realmName: string, redirectUri: string, loginCallback: () => void): AuthManager {
+        if (!AuthManager.instance) {
+            AuthManager.instance = new AuthManager(authServer, realmName, redirectUri, loginCallback);
+        }
+        return AuthManager.instance;
+    }
+
+    public static getInstance(): AuthManager {
         if (!AuthManager.instance) {
             throw new Error('AuthManager not initialized');
         }
         return AuthManager.instance;
     }
 
-    private  toBase64Url = (base64String: string) => {
-        return base64String
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-    };
-    private  generatePKCEPair = () => {
-        const NUM_OF_BYTES = 32; // This will generate a verifier of sufficient length
-        const HASH_ALG = 'sha256';
-
-        // Generate code verifier
-        const newCodeVerifier = this.toBase64Url(
-          randomBytes(NUM_OF_BYTES).toString('base64'),
-        );
-
-        // Generate code challenge
-        const hash = createHash(HASH_ALG)
-          .update(newCodeVerifier)
-          .digest('base64');
-        const newCodeChallenge = this.toBase64Url(hash);
-
-        return { newCodeVerifier, newCodeChallenge };
-    };
-
-    private async refreshAccessToken(): Promise<string> {
-        return new Promise(async (resolve, reject) => {
-            try {
-                const refreshToken: string | null = localStorage.getItem('refresh_token');
-                if (!refreshToken) {
-                    throw new Error('No refresh token found');
-                }
-                const decodedRefreshToken = JSON.parse(atob(refreshToken.split('.')[1]));
-                if (decodedRefreshToken) {
-                    const currentTime = Date.now() / 1000;
-                    if (decodedRefreshToken.exp < currentTime) {
-                        throw new Error('Refresh token expired');
-                    }
-                }
-                await fetch(`${this.authServer}auth/refresh`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        refresh_token: refreshToken,
-                    }),
-                })
-                    .then((response) => {
-                        if (response.status !== 200) {
-                            throw new Error('Failed to refresh the token');
-                        }
-                        return response.json();
-                    })
-                    .then((exchangeJson) => {
-                        localStorage.setItem('refresh_token', exchangeJson.refresh_token);
-                        localStorage.setItem('access_token', exchangeJson.access_token);
-                        resolve(exchangeJson.access_token);
-                    })
-                    .catch((error) => {
-                        reject(error);
-                    });
-            } catch (error) {
-                reject(error);
-            }
-        });
+    private toBase64Url(base64String: string): string {
+        return base64String.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
-    private async checkAccessToken(): Promise<string> {
-        return new Promise(async (resolve, reject) => {
-            try {
-                let accessToken: string | null = localStorage.getItem('access_token');
+    private generatePKCEPair(): { verifier: string; challenge: string } {
+        const verifier = localStorage.getItem('codeVerifier') ?? this.toBase64Url(randomBytes(32).toString('base64'));
+        const challenge = localStorage.getItem('codeChallenge') ?? this.toBase64Url(createHash('sha256').update(verifier).digest('base64'));
 
-                if (!accessToken) {
-                    accessToken = await this.refreshAccessToken();
-                } else {
-                    const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
-                    const currentTime = Date.now() / 1000;
+        localStorage.setItem('codeVerifier', verifier);
+        localStorage.setItem('codeChallenge', challenge);
 
-                    if (decodedToken && decodedToken.exp < currentTime) {
-                        accessToken = await this.refreshAccessToken();
-                    }
-                }
-
-                resolve(accessToken);
-            } catch (error) {
-                reject(error);
-            }
-        });
+        return { verifier, challenge };
     }
 
-    public async mustBeLoggedIn(): Promise<boolean> {
-        return new Promise((resolve, reject) => {
-            this.isLoggedIn().then((isLoggedIn) => {
-                if (!isLoggedIn) {
-                    this.loginCallback();
-                    return resolve(false);
-                }
-                return resolve(true);
+    public async refreshAccessToken(): Promise<string> {
+        try {
+            const refreshToken = localStorage.getItem('refresh_token');
+            console.error(refreshToken);
+            if (!refreshToken) {
+                throw new Error('No refresh token found');
+            }
+
+            const response = await axios.post(`${this.authServer}auth/refresh`, {
+                refresh_token: refreshToken
             });
-        });
-    }
 
-    public getLoginWithGoogleUri(): string {
-        // get or create codeVerifier and codeChallenge from localstorage
-        const { newCodeVerifier, newCodeChallenge } = this.generatePKCEPair();
-        let codeVerifier = localStorage.getItem('codeVerifier') || newCodeVerifier;
-        let codeChallenge = localStorage.getItem('codeChallenge') || newCodeChallenge;
-        localStorage.setItem('codeVerifier', codeVerifier);
-        localStorage.setItem('codeChallenge', codeChallenge);
-
-        if (this.authServer && this.realmName && this.redirectUri) {
-            return  `${this.authServer}auth/login_with_google?realm_name=${this.realmName}` +
-              `&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`
+            localStorage.setItem('refresh_token', response.data.refresh_token);
+            localStorage.setItem('access_token', response.data.access_token);
+            return response.data.access_token;
+        } catch (error) {
+            console.error(`Refresh token error, logging out: ${error}`);
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            this.loginCallback();
+            throw error;
         }
     }
 
+    public async checkAccessToken(): Promise<string> {
+        let accessToken = localStorage.getItem('access_token');
+        if (!accessToken || this.isTokenExpired(accessToken)) {
+            return this.refreshAccessToken();
+        }
+        return accessToken;
+    }
+
+    private isTokenExpired(token: string): boolean {
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        return decoded.exp < Date.now() / 1000;
+    }
+
+    public async mustBeLoggedIn(): Promise<boolean> {
+        return this.isLoggedIn() || (this.loginCallback(), false);
+    }
+
+    public getLoginWithGoogleUri(): string {
+        const { challenge } = this.generatePKCEPair();
+        return `${this.authServer}auth/login_with_google?realm_name=${this.realmName}&redirect_uri=${encodeURIComponent(this.redirectUri)}&code_challenge=${challenge}&code_challenge_method=S256`;
+    }
+
     public async isLoggedIn(): Promise<boolean> {
-        // todo here: check if refresh token is expired and if so, try to refresh, then update token
-        return new Promise(async (resolve, reject) => {
-            try {
-                await this.checkAccessToken();
-                return resolve(true);
-            } catch (error) {
-                reject(error);
-            }
-        });
+        try {
+            await this.checkAccessToken();
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     public async getAccessToken(): Promise<string> {
-        // todo here: check if refresh token is expired and if so, try to refresh, then update token
-        // otherwise throw error
-        return new Promise(async (resolve, reject) => {
-            try {
-                const accessToken = await this.checkAccessToken();
-
-                return resolve(accessToken);
-            } catch (error) {
-                reject(error);
-            }
-        });
+        return this.checkAccessToken();
     }
 
-    public async loginUsingPkce(code): Promise<void> {
-        return new Promise((resolve, reject) => {
-            try {
-                const codeVerifier = localStorage.getItem('codeVerifier');
-                if (codeVerifier) {
-                    fetch(`${this.authServer}auth/pkce_exchange`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            realm_name: this.realmName,
-                            code: code,
-                            redirect_uri: this.redirectUri,
-                            code_verifier: codeVerifier,
-                        }),
-                    })
-                      .then((response) => {
-                          localStorage.removeItem('codeVerifier');
-                          localStorage.removeItem('codeChallenge');
-                          if (response.status !== 200) {
-                              throw new Error('Failed to exchange code for token');
-                          }
-                          return response.json();
-                      })
-                      .then((exchangeJson) => {
-                          localStorage.setItem('access_token', exchangeJson.access_token);
-                          localStorage.setItem('refresh_token', exchangeJson.refresh_token);
-                          resolve();
-                      })
-                      .catch((error) => {
-                          localStorage.removeItem('codeVerifier');
-                          localStorage.removeItem('codeChallenge');
-                          reject(error);
-                      });
-                }
-            } catch (error) {
-                reject(error);
+    public async loginUsingPkce(code: string): Promise<void> {
+        try {
+            const codeVerifier = localStorage.getItem('codeVerifier');
+            if (!codeVerifier) {
+                throw new Error('Code verifier not found');
             }
-        });
+
+            const response = await axios.post(`${this.authServer}auth/pkce_exchange`, {
+                realm_name: this.realmName,
+                code,
+                redirect_uri: this.redirectUri,
+                code_verifier: codeVerifier,
+            });
+
+            localStorage.setItem('access_token', response.data.access_token);
+            localStorage.setItem('refresh_token', response.data.refresh_token);
+        } finally {
+            localStorage.removeItem('codeVerifier');
+            localStorage.removeItem('codeChallenge');
+        }
     }
 
     public async logout(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            try {
-                const bearerToken = localStorage.getItem('access_token');
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('refresh_token');
-                fetch(`${this.authServer}auth/logout`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${bearerToken}`,
-                    },
-                }).then((response) => {
-                    if (response.status !== 200) {
-                        throw new Error('Failed to attempt logout')
-                    }
-                    resolve();
-                }).catch((error) => {
-                    reject(error);
-                })
-            } catch (error) {
-                reject(error);
+        try {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                throw new Error('Access token not found');
             }
-        })
+            await axios.post(`${this.authServer}auth/logout`, {}, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+        } finally {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+        }
     }
 
     public static async validateToken(authServer: string, bearerToken: string): Promise<boolean> {
-        return new Promise<boolean>(async (resolve, reject) => {
-            try {
-                const accessToken = bearerToken.includes('Bearer ') ? bearerToken.replace('Bearer ', '') : bearerToken;
-                const decodedToken = accessToken ? JSON.parse(atob(accessToken.split('.')[1])) : null;
+        try {
+            const decodedToken = jwt.decode(bearerToken, { complete: true })?.payload;
 
-                if (!decodedToken) {
-                    return resolve(false);
-                }
-
-                const currentTime = Date.now() / 1000;
-                if (decodedToken.exp < currentTime) {
-                    return resolve(false);
-                }
-
-                const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
-                const { data: algo } = await axios.get(`${authServer}public/algo`);
-                const jwt = require('jsonwebtoken');
-                jwt.verify(accessToken, publicKey, { algorithms: [algo] }, (error, payload) => {
-                    if (error) {
-                        return resolve(false);
-                    }
-                    axios.get(`${authServer}public/revoked_ids`).then(({ data: revokedIds }) => {
-                        if (revokedIds && (revokedIds as number[]).includes(decodedToken['id'])) {
-                            return resolve(false);
-                        }
-                        return resolve(true);
-                    });
-                });
-            } catch (error) {
-                reject(error);
+            if (!decodedToken || decodedToken.exp < Date.now() / 1000) {
+                return false;
             }
-        })
+
+            const { data: publicKey } = await axios.get(`${authServer}public/public_key`);
+            const { data: algo } = await axios.get(`${authServer}public/algo`);
+
+            jwt.verify(bearerToken, publicKey, { algorithms: [algo] });
+
+            const { data: revokedIds } = await axios.get(`${authServer}public/revoked_ids`);
+            return !revokedIds.includes(decodedToken['id']);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    public static resetInstance(): void {
+        AuthManager.instance = null;
     }
 }
