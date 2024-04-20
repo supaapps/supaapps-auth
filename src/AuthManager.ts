@@ -48,7 +48,6 @@ export class AuthManager {
     public async refreshAccessToken(): Promise<string> {
         try {
             const refreshToken = localStorage.getItem('refresh_token');
-            console.error(refreshToken);
             if (!refreshToken) {
                 throw new Error('No refresh token found');
             }
