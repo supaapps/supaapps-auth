@@ -124,7 +124,7 @@ export class AuthManager {
 
   public async checkAccessToken(isInitilization: boolean = false): Promise<string> {
     const accessToken = localStorage.getItem('access_token');
-    if (accessToken || this.isTokenExpired(accessToken)) {
+    if (accessToken && this.isTokenExpired(accessToken)) {
       return this.refreshAccessToken(isInitilization);
     }
     return accessToken;
