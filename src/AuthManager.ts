@@ -43,8 +43,7 @@ export class AuthManager {
         redirectUri,
         onStateChange,
       );
-    }
-    AuthManager.instance
+      AuthManager.instance
       .checkAccessToken()
       .then((token) => {
         onStateChange({
@@ -55,6 +54,7 @@ export class AuthManager {
       .catch(() => {
         onStateChange({ type: AuthEventType.INITALIZED_OUT });
       });
+    }
     return AuthManager.instance;
   }
 

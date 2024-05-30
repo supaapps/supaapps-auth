@@ -115,8 +115,8 @@ describe('AuthManager Tests', () => {
       mock.onPost('http://auth-server.com/auth/logout').reply(200);
       
       const loginCallback = jest.fn();
-      localStorage.setItem('access_token', tokenThatWontExpire1);
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
+      localStorage.setItem('access_token', tokenThatWontExpire1);
       await manager.logout();
   
       expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
