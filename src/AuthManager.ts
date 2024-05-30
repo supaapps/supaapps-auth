@@ -95,7 +95,7 @@ export class AuthManager {
     return { verifier, challenge };
   }
 
-  public async refreshAccessToken(): Promise<string> {
+  public async refreshAccessToken(isInitilization: boolean = false): Promise<string> {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -114,15 +114,18 @@ export class AuthManager {
       console.error(`Refresh token error, logging out: ${error}`);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-      this.onStateChange({ type: AuthEventType.REFRESH_FAILED });
+      if (!isInitilization) {
+        // throw refresh fail only if not initialization
+        this.onStateChange({ type: AuthEventType.REFRESH_FAILED });
+      }
       throw error;
     }
   }
 
-  public async checkAccessToken(): Promise<string> {
+  public async checkAccessToken(isInitilization: boolean = false): Promise<string> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken || this.isTokenExpired(accessToken)) {
-      return this.refreshAccessToken();
+      return this.refreshAccessToken(isInitilization);
     }
     return accessToken;
   }
