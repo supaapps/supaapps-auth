@@ -1,9 +1,15 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { AuthManager } from '../src/AuthManager';
+import { AuthEventType } from '../src/types';
 import { basename } from 'path';
 
 const mock = new MockAdapter(axios);
+
+
+const tokenThatWontExpire1 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZmlyc3RfbmFtZSI6IkpvaG4gRG9lIiwibGFzdF9uYW1lIjoiRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJzY29wZXMiOiIvcm9vdC8qIiwiZXhwIjo5OTk5OTk5OTk5LCJpZCI6MiwiaXNzIjoxMjMsImF1ZCI6InRlc3RpbmcifQ.843X4Zq2WgNSu8fjRKx-kd_FbDqY_eVkgu2wZZbhhwE';
+const tokenThatWontExpire2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZmlyc3RfbmFtZSI6IkpvaG4gRG9lIiwibGFzdF9uYW1lIjoiRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJzY29wZXMiOiIvcm9vdC8qIiwiZXhwIjo5OTk5OTk5OTk5LCJpZCI6MiwiaXNzIjoxMjMsImF1ZCI6InRlc3RpbmcifQ.843X4Zq2WgNSu8fjRKx-kd_FbDqY_eVkgu2wZZbhhwE';
+const tokenThatExpired = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZmlyc3RfbmFtZSI6IkpvaG4gRG9lIiwibGFzdF9uYW1lIjoiRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJzY29wZXMiOiIvcm9vdC8qIiwiZXhwIjo1MDAsImlkIjoyLCJpc3MiOjEyMywiYXVkIjoidGVzdGluZyJ9.ungpbhHfCM5ZP5oiZ1RnMkJ-NKJI8s3_IPJptjyKHR4';
 
 
 describe('AuthManager Tests', () => {
@@ -45,13 +51,13 @@ describe('AuthManager Tests', () => {
 
     it('refreshes access token when expired', async () => {
       mock.onPost('http://auth-server.com/auth/refresh').reply(200, {
-        access_token: 'newAccessToken',
+        access_token: tokenThatWontExpire2,
         refresh_token: 'newRefreshToken'
       });
   
       const loginCallback = jest.fn();
       // check that we set localstorage correct
-      localStorage.setItem('access_token', 'mockAccessToken');
+      localStorage.setItem('access_token', tokenThatExpired);
       localStorage.setItem('refresh_token', 'mockRefreshToken');
 
       const refresh = localStorage.getItem('refresh_token');
@@ -60,8 +66,8 @@ describe('AuthManager Tests', () => {
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
       const token = await manager.refreshAccessToken();
   
-      expect(token).toEqual('newAccessToken');
-      expect(localStorage.setItem).toHaveBeenCalledWith('access_token', 'newAccessToken');
+      expect(token).toEqual(tokenThatWontExpire2);
+      expect(localStorage.setItem).toHaveBeenCalledWith('access_token', tokenThatWontExpire2);
       expect(localStorage.setItem).toHaveBeenCalledWith('refresh_token', 'newRefreshToken');
     });
   
@@ -73,7 +79,9 @@ describe('AuthManager Tests', () => {
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
       
       await expect(manager.refreshAccessToken()).rejects.toThrow('No refresh token found');
-      await expect(loginCallback).toHaveBeenCalled();
+      await expect(loginCallback).toHaveBeenCalledWith({
+        type: AuthEventType.REFRESH_FAILED,
+      });
     });
 
     it('logs in using PKCE and updates local storage', async () => {
@@ -104,11 +112,11 @@ describe('AuthManager Tests', () => {
     });
   
     it('logs out and clears local storage', async () => {
-      localStorage.setItem('access_token', 'validAccessToken');
       mock.onPost('http://auth-server.com/auth/logout').reply(200);
-  
+      
       const loginCallback = jest.fn();
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
+      localStorage.setItem('access_token', tokenThatWontExpire1);
       await manager.logout();
   
       expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
