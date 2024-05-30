@@ -44,7 +44,7 @@ export class AuthManager {
         onStateChange,
       );
       AuthManager.instance
-      .checkAccessToken()
+      .checkAccessToken(true)
       .then((token) => {
         onStateChange({
           type: AuthEventType.INITALIZED_IN,
