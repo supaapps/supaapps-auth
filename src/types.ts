@@ -20,6 +20,7 @@ export interface UserTokenPayload {
     iat: number;
     exp: number;
     scopes: string;
+    realm: string;
 }
 
 export interface AuthManagerEvent {

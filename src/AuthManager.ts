@@ -230,34 +230,47 @@ export class AuthManager {
   public static async validateToken(
     authServer: string,
     bearerToken: string,
-  ): Promise<boolean> {
+  ): Promise<UserTokenPayload> {
     // @todo tests missing for this static validation
-    try {
-      const decodedToken = jwtDecode(bearerToken, {
-        complete: true,
-      })?.payload;
+    // @todo add caching for public key and algo
+    const decodedToken = jwtDecode(bearerToken, {
+      complete: true,
+    })?.payload;
 
-      if (!decodedToken) {
-        return false;
-      }
-
-      const { data: publicKey } = await axios.get(
-        `${authServer}public/public_key`,
-      );
-      const { data: algo } = await axios.get(
-        `${authServer}public/algo`,
-      );
-
-      jwtVerify(bearerToken, publicKey, { algorithms: [algo] });
-
-      const { data: revokedIds } = await axios.get(
-        `${authServer}public/revoked_ids`,
-      );
-      // eslint-disable-next-line @typescript-eslint/dot-notation
-      return !revokedIds.includes(decodedToken['id']);
-    } catch (error) {
-      return false;
+    if (!decodedToken) {
+      throw new Error('Not a valid jwt token');
     }
+
+    const userToken: UserTokenPayload = {
+        id: decodedToken['id'],
+        iss: decodedToken['iss'],
+        sub: parseInt(decodedToken['sub'] as string),
+        first_name: decodedToken['first_name'],
+        last_name: decodedToken['last_name'],
+        email: decodedToken['email'],
+        aud: decodedToken['aud'],
+        iat: decodedToken['iat'],
+        exp: decodedToken['exp'],
+        scopes: decodedToken['scopes'],
+        realm: decodedToken['realm'],
+    }
+
+    const { data: publicKey } = await axios.get(
+      `${authServer}public/public_key`,
+    );
+    const { data: algo } = await axios.get(
+      `${authServer}public/algo`,
+    );
+
+    jwtVerify(bearerToken, publicKey, { algorithms: [algo] });
+
+    const { data: revokedIds } = await axios.get(
+      `${authServer}public/revoked_ids`,
+    );
+    if(revokedIds.includes(decodedToken['id'])){
+      throw new Error('Token is revoked');
+    }
+    return userToken;
   }
 
   public static resetInstance(): void {
