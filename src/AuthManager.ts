@@ -171,7 +171,7 @@ export class AuthManager {
   }
 
 
-  public async platformCheck(email: string): Promise<Array<Platforms>> {
+  public async platformCheck(email: string): Promise<{platforms: Platforms[]}> {
     const response = await axios.post(
         `${this.authServer}auth/email/platform_check`,
         {
