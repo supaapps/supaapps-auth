@@ -170,6 +170,22 @@ export class AuthManager {
     }
   }
 
+
+  public async platformCheck(email: string, token: string): Promise<boolean> {
+    const response = await axios.post(
+        `${this.authServer}auth/email/platform_check`,
+        {
+          realm_name: this.realmName,
+          email,
+        },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return (response.status === 200) ? response.data : {'platforms': []};
+  }
+
   public async verifyEmail(email: string, token: string): Promise<boolean> {
     const response = await axios.post(
       `${this.authServer}auth/email/verify`,
