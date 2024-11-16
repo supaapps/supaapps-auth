@@ -4,7 +4,7 @@ import {
   decode as jwtDecode,
   verify as jwtVerify,
 } from 'jsonwebtoken'; // Ensure jsonwebtoken is correctly imported
-import { AuthEventType, AuthManagerEvent, UserTokenPayload } from './types';
+import {AuthEventType, AuthManagerEvent, Platforms, UserTokenPayload} from './types';
 
 export class AuthManager {
   private static instance: AuthManager | null = null;
@@ -171,7 +171,7 @@ export class AuthManager {
   }
 
 
-  public async platformCheck(email: string, token: string): Promise<boolean> {
+  public async platformCheck(email: string): Promise<Array<Platforms>> {
     const response = await axios.post(
         `${this.authServer}auth/email/platform_check`,
         {

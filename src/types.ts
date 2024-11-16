@@ -27,3 +27,14 @@ export interface AuthManagerEvent {
     type:  AuthEventType;
     user?: UserTokenPayload;
 }
+
+export enum Platforms {
+    PASSWORD = 'password',
+    GOOGLE = 'google',
+    FACEBOOK = 'facebook',
+    TWITTER = 'twitter',
+    GITHUB = 'github',
+    APPLE = 'apple',
+    LINKEDIN = 'linkedin',
+    MICROSOFT = 'microsoft',
+}
