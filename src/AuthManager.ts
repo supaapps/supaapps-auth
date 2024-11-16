@@ -43,9 +43,8 @@ export class AuthManager {
         redirectUri,
         onStateChange,
       );
-    }
-    AuthManager.instance
-      .checkAccessToken()
+      AuthManager.instance
+      .checkAccessToken(true)
       .then((token) => {
         onStateChange({
           type: AuthEventType.INITALIZED_IN,
@@ -55,6 +54,7 @@ export class AuthManager {
       .catch(() => {
         onStateChange({ type: AuthEventType.INITALIZED_OUT });
       });
+    }
     return AuthManager.instance;
   }
 
@@ -95,7 +95,7 @@ export class AuthManager {
     return { verifier, challenge };
   }
 
-  public async refreshAccessToken(): Promise<string> {
+  public async refreshAccessToken(isInitilization: boolean = false): Promise<string> {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -114,15 +114,18 @@ export class AuthManager {
       console.error(`Refresh token error, logging out: ${error}`);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-      this.onStateChange({ type: AuthEventType.REFRESH_FAILED });
+      if (!isInitilization) {
+        // throw refresh fail only if not initialization
+        this.onStateChange({ type: AuthEventType.REFRESH_FAILED });
+      }
       throw error;
     }
   }
 
-  public async checkAccessToken(): Promise<string> {
+  public async checkAccessToken(isInitilization: boolean = false): Promise<string> {
     const accessToken = localStorage.getItem('access_token');
-    if (accessToken || this.isTokenExpired(accessToken)) {
-      return this.refreshAccessToken();
+    if (accessToken && this.isTokenExpired(accessToken)) {
+      return this.refreshAccessToken(isInitilization);
     }
     return accessToken;
   }
@@ -167,6 +170,125 @@ export class AuthManager {
     }
   }
 
+  public async verifyEmail(email: string, code: string): Promise<boolean> {
+    const response = await axios.post(
+      `${this.authServer}auth/email/verify`,
+      {
+        realm_name: this.realmName,
+        email,
+        code,
+      },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return response.status === 200;
+  }
+
+  public async doPassReset(email: string, code: string, newPassword: string): Promise<boolean> {
+    const response = await axios.post(
+        `${this.authServer}auth/email/do_pass_reset`,
+        {
+          realm_name: this.realmName,
+          email,
+        },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return response.status === 200;
+  }
+
+  public async changeEmail(email: string): Promise<boolean> {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      throw new Error('Access token not found');
+    }
+    const response = await axios.post(
+      `${this.authServer}auth/email/change_email`,
+      {
+        realm_name: this.realmName,
+        email,
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return response.status === 200;
+  }
+
+  public async initPasswordReset(email: string): Promise<boolean> {
+    const response = await axios.post(
+      `${this.authServer}auth/email/init_pass_reset`,
+      {
+        realm_name: this.realmName,
+        email,
+      },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return response.status === 200 || response.status === 201;
+  }
+
+  public async changePassword(oldPassword: string, newPassword: string, email: string): Promise<boolean> {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      throw new Error('Access token not found');
+    }
+    const response = await axios.post(
+      `${this.authServer}auth/email/change_pass`,
+      {
+        realm_name: this.realmName,
+        email,
+        old_password: oldPassword,
+        new_password: newPassword,
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (response.data.error || response.data.errors) {
+      throw new Error(response.data.error || response.data.message);
+    }
+
+    return response.status === 200;
+  }
+
+  public async registerUsingEmail(
+      firstName: string,
+      lastName: string,
+      email: string,
+      password: string
+  ): Promise<void> {
+    const response = await axios.post(
+      `${this.authServer}auth/email/register`,
+      {
+        realm_name: this.realmName,
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        password,
+      },
+    );
+    if (response.data.message || response.data.error) {
+      throw new Error(response.data.message || response.data.error);
+    }
+
+    if (!response.data.access_token) {
+        throw new Error('Something went wrong');
+    }
+
+    this.saveTokens(response, false);
+  }
+
   private saveTokens(response: AxiosResponse, byRefresh: boolean): void {
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem(
@@ -179,6 +301,21 @@ export class AuthManager {
      });
     const user = this.tokenToPayload(response.data.access_token);
     localStorage.setItem('user', JSON.stringify(user));
+  }
+
+  public async loginUsingEmail(email: string, password: string): Promise<void> {
+    const response = await axios.post(
+      `${this.authServer}auth/email/login`,
+      {
+        realm_name: this.realmName,
+        email,
+        password,
+      },
+    );
+    if (response.data.message || response.data.error) {
+      throw new Error(response.data.message || response.data.error);
+    }
+    this.saveTokens(response, false);
   }
 
   public async loginUsingPkce(code: string): Promise<void> {
@@ -227,34 +364,47 @@ export class AuthManager {
   public static async validateToken(
     authServer: string,
     bearerToken: string,
-  ): Promise<boolean> {
+  ): Promise<UserTokenPayload> {
     // @todo tests missing for this static validation
-    try {
-      const decodedToken = jwtDecode(bearerToken, {
-        complete: true,
-      })?.payload;
+    // @todo add caching for public key and algo
+    const decodedToken = jwtDecode(bearerToken, {
+      complete: true,
+    })?.payload;
 
-      if (!decodedToken) {
-        return false;
-      }
-
-      const { data: publicKey } = await axios.get(
-        `${authServer}public/public_key`,
-      );
-      const { data: algo } = await axios.get(
-        `${authServer}public/algo`,
-      );
-
-      jwtVerify(bearerToken, publicKey, { algorithms: [algo] });
-
-      const { data: revokedIds } = await axios.get(
-        `${authServer}public/revoked_ids`,
-      );
-      // eslint-disable-next-line @typescript-eslint/dot-notation
-      return !revokedIds.includes(decodedToken['id']);
-    } catch (error) {
-      return false;
+    if (!decodedToken) {
+      throw new Error('Not a valid jwt token');
     }
+
+    const userToken: UserTokenPayload = {
+        id: decodedToken['id'],
+        iss: decodedToken['iss'],
+        sub: parseInt(decodedToken['sub'] as string),
+        first_name: decodedToken['first_name'],
+        last_name: decodedToken['last_name'],
+        email: decodedToken['email'],
+        aud: decodedToken['aud'],
+        iat: decodedToken['iat'],
+        exp: decodedToken['exp'],
+        scopes: decodedToken['scopes'],
+        realm: decodedToken['realm'],
+    }
+
+    const { data: publicKey } = await axios.get(
+      `${authServer}public/public_key`,
+    );
+    const { data: algo } = await axios.get(
+      `${authServer}public/algo`,
+    );
+
+    jwtVerify(bearerToken, publicKey, { algorithms: [algo] });
+
+    const { data: revokedIds } = await axios.get(
+      `${authServer}public/revoked_ids`,
+    );
+    if(revokedIds.includes(decodedToken['id'])){
+      throw new Error('Token is revoked');
+    }
+    return userToken;
   }
 
   public static resetInstance(): void {

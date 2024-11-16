@@ -12,7 +12,12 @@ const tokenThatWontExpire2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxM
 const tokenThatExpired = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZmlyc3RfbmFtZSI6IkpvaG4gRG9lIiwibGFzdF9uYW1lIjoiRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJzY29wZXMiOiIvcm9vdC8qIiwiZXhwIjo1MDAsImlkIjoyLCJpc3MiOjEyMywiYXVkIjoidGVzdGluZyJ9.ungpbhHfCM5ZP5oiZ1RnMkJ-NKJI8s3_IPJptjyKHR4';
 
 
+
+
 describe('AuthManager Tests', () => {
+    beforeAll(() => {
+      jest.spyOn(localStorage, 'getItem');
+    });
 
     beforeEach(() => {
         localStorage.clear();  // Clear localStorage before each test
@@ -72,6 +77,26 @@ describe('AuthManager Tests', () => {
     });
   
 
+    describe('AuthManager Tests isolated ', () => {
+      it('doesn\'t refresh access token when its not expired', async () => {
+        const stateChange = jest.fn();
+        
+
+        // check that we set localstorage correct
+        localStorage.setItem('access_token', tokenThatWontExpire1);
+        localStorage.setItem('refresh_token', 'mockRefreshToken');
+    
+        const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', stateChange);
+
+        const currentCallCount = (localStorage.getItem as jest.Mock).mock.calls.length;
+
+        const token = await manager.getAccessToken();
+    
+        expect(localStorage.getItem).toHaveBeenCalledTimes(currentCallCount + 1);
+    
+      });
+    });
+    
     it('throws an error when no refresh token is found', async () => {
       localStorage.removeItem('refresh_token');
 
@@ -115,8 +140,8 @@ describe('AuthManager Tests', () => {
       mock.onPost('http://auth-server.com/auth/logout').reply(200);
       
       const loginCallback = jest.fn();
-      localStorage.setItem('access_token', tokenThatWontExpire1);
       const manager = AuthManager.initialize('http://auth-server.com/', 'example-realm', 'http://myapp.com/callback', loginCallback);
+      localStorage.setItem('access_token', tokenThatWontExpire1);
       await manager.logout();
   
       expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
