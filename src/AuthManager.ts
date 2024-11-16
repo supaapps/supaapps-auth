@@ -95,7 +95,7 @@ export class AuthManager {
     return { verifier, challenge };
   }
 
-  public async refreshAccessToken(isInitilization: boolean = false): Promise<string> {
+  public async refreshAccessToken(isInitialization: boolean = false): Promise<string> {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -114,7 +114,7 @@ export class AuthManager {
       console.error(`Refresh token error, logging out: ${error}`);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-      if (!isInitilization) {
+      if (!isInitialization) {
         // throw refresh fail only if not initialization
         this.onStateChange({ type: AuthEventType.REFRESH_FAILED });
       }
@@ -170,13 +170,13 @@ export class AuthManager {
     }
   }
 
-  public async verifyEmail(email: string, code: string): Promise<boolean> {
+  public async verifyEmail(email: string, token: string): Promise<boolean> {
     const response = await axios.post(
       `${this.authServer}auth/email/verify`,
       {
         realm_name: this.realmName,
         email,
-        code,
+        token,
       },
     );
     if (response.data.error || response.data.errors) {
@@ -186,12 +186,14 @@ export class AuthManager {
     return response.status === 200;
   }
 
-  public async doPassReset(email: string, code: string, newPassword: string): Promise<boolean> {
+  public async doPassReset(email: string, token: string, newPassword: string): Promise<boolean> {
     const response = await axios.post(
         `${this.authServer}auth/email/do_pass_reset`,
         {
           realm_name: this.realmName,
           email,
+          token,
+          new_password: newPassword,
         },
     );
     if (response.data.error || response.data.errors) {
