@@ -12,7 +12,7 @@ export enum AuthEventType {
 export interface UserTokenPayload {
     id: number;
     iss: string;
-    sub: number;
+    sub: number | string;
     first_name: string;
     last_name: string;
     email: string;

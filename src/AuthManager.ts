@@ -371,24 +371,24 @@ export class AuthManager {
     // @todo add caching for public key and algo
     const decodedToken = jwtDecode(bearerToken, {
       complete: true,
-    })?.payload;
+    })?.payload as unknown as UserTokenPayload;
 
     if (!decodedToken) {
       throw new Error('Not a valid jwt token');
     }
 
     const userToken: UserTokenPayload = {
-        id: decodedToken['id'],
-        iss: decodedToken['iss'],
-        sub: parseInt(decodedToken['sub'] as string),
-        first_name: decodedToken['first_name'],
-        last_name: decodedToken['last_name'],
-        email: decodedToken['email'],
-        aud: decodedToken['aud'],
-        iat: decodedToken['iat'],
-        exp: decodedToken['exp'],
-        scopes: decodedToken['scopes'],
-        realm: decodedToken['realm'],
+        id: decodedToken.id,
+        iss: decodedToken.iss,
+        sub: typeof decodedToken.sub === 'string' ? parseInt(decodedToken.sub) : decodedToken.sub,
+        first_name: decodedToken.first_name,
+        last_name: decodedToken.last_name,
+        email: decodedToken.email,
+        aud: decodedToken.aud,
+        iat: decodedToken.iat,
+        exp: decodedToken.exp,
+        scopes: decodedToken.scopes,
+        realm: decodedToken.realm,
     }
 
     const { data: publicKey } = await axios.get(
@@ -403,7 +403,7 @@ export class AuthManager {
     const { data: revokedIds } = await axios.get(
       `${authServer}public/revoked_ids`,
     );
-    if(revokedIds.includes(decodedToken['id'])){
+    if(revokedIds.includes(decodedToken.id)){
       throw new Error('Token is revoked');
     }
     return userToken;
