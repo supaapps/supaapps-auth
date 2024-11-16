@@ -21,6 +21,7 @@ export interface UserTokenPayload {
     exp: number;
     scopes: string;
     realm: string;
+    provider: Platforms;
 }
 
 export interface AuthManagerEvent {
