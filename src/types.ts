@@ -29,6 +29,10 @@ export interface AuthManagerEvent {
     user?: UserTokenPayload;
 }
 
+export interface PlatformCheckResponse {
+    platform: Platforms[];
+}
+
 export enum Platforms {
     PASSWORD = 'password',
     GOOGLE = 'google',
