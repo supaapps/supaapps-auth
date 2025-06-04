@@ -82,8 +82,8 @@ export class AuthManager {
   }
 
   private generatePKCEPair(): {
-    verifier: string;
-    challenge: string;
+    verifier: string,
+    challenge: string,
   } {
     const verifier =
       localStorage.getItem('codeVerifier') ??
@@ -285,7 +285,7 @@ export class AuthManager {
     firstName?: string,
     lastName?: string,
     email?: string,
-    password?: { old: string; new: string },
+    password?: { old: string, new: string, },
   }): Promise<boolean> {
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
