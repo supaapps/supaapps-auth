@@ -4,7 +4,12 @@ import {
   decode as jwtDecode,
   verify as jwtVerify,
 } from 'jsonwebtoken'; // Ensure jsonwebtoken is correctly imported
-import {AuthEventType, AuthManagerEvent, PlatformCheckResponse, UserTokenPayload} from './types';
+import {
+  AuthEventType,
+  AuthManagerEvent,
+  PlatformCheckResponse,
+  UserTokenPayload,
+} from './types';
 
 export class AuthManager {
   private static instance: AuthManager | null = null;
@@ -44,16 +49,16 @@ export class AuthManager {
         onStateChange,
       );
       AuthManager.instance
-      .checkAccessToken(true)
-      .then((token) => {
-        onStateChange({
-          type: AuthEventType.INITALIZED_IN,
-          user: AuthManager.instance.tokenToPayload(token),
+        .checkAccessToken(true)
+        .then((token) => {
+          onStateChange({
+            type: AuthEventType.INITALIZED_IN,
+            user: AuthManager.instance.tokenToPayload(token),
+          });
+        })
+        .catch(() => {
+          onStateChange({ type: AuthEventType.INITALIZED_OUT });
         });
-      })
-      .catch(() => {
-        onStateChange({ type: AuthEventType.INITALIZED_OUT });
-      });
     }
     return AuthManager.instance;
   }
@@ -77,8 +82,8 @@ export class AuthManager {
   }
 
   private generatePKCEPair(): {
-    verifier: string,
-    challenge: string,
+    verifier: string;
+    challenge: string;
   } {
     const verifier =
       localStorage.getItem('codeVerifier') ??
@@ -95,7 +100,9 @@ export class AuthManager {
     return { verifier, challenge };
   }
 
-  public async refreshAccessToken(isInitialization: boolean = false): Promise<string> {
+  public async refreshAccessToken(
+    isInitialization: boolean = false,
+  ): Promise<string> {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
@@ -122,7 +129,9 @@ export class AuthManager {
     }
   }
 
-  public async checkAccessToken(isInitilization: boolean = false): Promise<string> {
+  public async checkAccessToken(
+    isInitilization: boolean = false,
+  ): Promise<string> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && this.isTokenExpired(accessToken)) {
       return this.refreshAccessToken(isInitilization);
@@ -157,7 +166,9 @@ export class AuthManager {
     }
   }
 
-  public async getAccessToken(mustBeLoggedIn: boolean = false): Promise<string> {
+  public async getAccessToken(
+    mustBeLoggedIn: boolean = false,
+  ): Promise<string> {
     try {
       return await this.checkAccessToken();
     } catch (error) {
@@ -170,23 +181,29 @@ export class AuthManager {
     }
   }
 
-
-  public async platformCheck(email: string): Promise<PlatformCheckResponse> {
+  public async platformCheck(
+    email: string,
+  ): Promise<PlatformCheckResponse> {
     const response = await axios.post(
-        `${this.authServer}auth/email/platform_check`,
-        {
-          realm_name: this.realmName,
-          email,
-        },
+      `${this.authServer}auth/email/platform_check`,
+      {
+        realm_name: this.realmName,
+        email,
+      },
     );
     if (response.data.error || response.data.errors) {
       throw new Error(response.data.error || response.data.message);
     }
 
-    return (response.status === 200) ? response.data : {'platforms': []};
+    return response.status === 200
+      ? response.data
+      : { platforms: [] };
   }
 
-  public async verifyEmail(email: string, token: string): Promise<boolean> {
+  public async verifyEmail(
+    email: string,
+    token: string,
+  ): Promise<boolean> {
     const response = await axios.post(
       `${this.authServer}auth/email/verify`,
       {
@@ -202,15 +219,19 @@ export class AuthManager {
     return response.status === 200;
   }
 
-  public async doPassReset(email: string, token: string, newPassword: string): Promise<boolean> {
+  public async doPassReset(
+    email: string,
+    token: string,
+    newPassword: string,
+  ): Promise<boolean> {
     const response = await axios.post(
-        `${this.authServer}auth/email/do_pass_reset`,
-        {
-          realm_name: this.realmName,
-          email,
-          token,
-          new_password: newPassword,
-        },
+      `${this.authServer}auth/email/do_pass_reset`,
+      {
+        realm_name: this.realmName,
+        email,
+        token,
+        new_password: newPassword,
+      },
     );
     if (response.data.error || response.data.errors) {
       throw new Error(response.data.error || response.data.message);
@@ -256,7 +277,85 @@ export class AuthManager {
     return response.status === 200 || response.status === 201;
   }
 
-  public async changePassword(oldPassword: string, newPassword: string, email: string): Promise<boolean> {
+  /**
+   * Updates user account fields. Only sends fields present in the update object.
+   * For password, expects: { old: string, new: string }
+   */
+  public async updateAccount(update: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    password?: { old: string; new: string };
+  }): Promise<boolean> {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      throw new Error('Access token not found');
+    }
+
+    // Update name
+    if (update.firstName || update.lastName) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/update_profile`,
+        {
+          realm_name: this.realmName,
+          ...(update.firstName && { first_name: update.firstName }),
+          ...(update.lastName && { last_name: update.lastName }),
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    }
+
+    // Update email
+    if (update.email) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/change_email`,
+        {
+          realm_name: this.realmName,
+          email: update.email,
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    }
+
+    // Update password
+    if (update.password && update.email) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/change_pass`,
+        {
+          realm_name: this.realmName,
+          email: update.email,
+          old_password: update.password.old,
+          new_password: update.password.new,
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    } else if (update.password && !update.email) {
+      throw new Error('Email is required to change password');
+    }
+
+    return true;
+  }
+
+  public async changePassword(
+    oldPassword: string,
+    newPassword: string,
+    email: string,
+  ): Promise<boolean> {
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
       throw new Error('Access token not found');
@@ -281,10 +380,10 @@ export class AuthManager {
   }
 
   public async registerUsingEmail(
-      firstName: string,
-      lastName: string,
-      email: string,
-      password: string
+    firstName: string,
+    lastName: string,
+    email: string,
+    password: string,
   ): Promise<void> {
     const response = await axios.post(
       `${this.authServer}auth/email/register`,
@@ -301,27 +400,35 @@ export class AuthManager {
     }
 
     if (!response.data.access_token) {
-        throw new Error('Something went wrong');
+      throw new Error('Something went wrong');
     }
 
     this.saveTokens(response, false);
   }
 
-  private saveTokens(response: AxiosResponse, byRefresh: boolean): void {
+  private saveTokens(
+    response: AxiosResponse,
+    byRefresh: boolean,
+  ): void {
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem(
       'refresh_token',
       response.data.refresh_token,
     );
     this.onStateChange({
-      type: byRefresh ? AuthEventType.USER_UPDATED : AuthEventType.USER_LOGGED_IN, 
+      type: byRefresh
+        ? AuthEventType.USER_UPDATED
+        : AuthEventType.USER_LOGGED_IN,
       user: this.tokenToPayload(response.data.access_token),
-     });
+    });
     const user = this.tokenToPayload(response.data.access_token);
     localStorage.setItem('user', JSON.stringify(user));
   }
 
-  public async loginUsingEmail(email: string, password: string): Promise<void> {
+  public async loginUsingEmail(
+    email: string,
+    password: string,
+  ): Promise<void> {
     const response = await axios.post(
       `${this.authServer}auth/email/login`,
       {
@@ -394,19 +501,22 @@ export class AuthManager {
     }
 
     const userToken: UserTokenPayload = {
-        id: decodedToken.id,
-        iss: decodedToken.iss,
-        sub: typeof decodedToken.sub === 'string' ? parseInt(decodedToken.sub) : decodedToken.sub,
-        first_name: decodedToken.first_name,
-        last_name: decodedToken.last_name,
-        email: decodedToken.email,
-        aud: decodedToken.aud,
-        iat: decodedToken.iat,
-        exp: decodedToken.exp,
-        scopes: decodedToken.scopes,
-        realm: decodedToken.realm,
-        provider: decodedToken.provider,
-    }
+      id: decodedToken.id,
+      iss: decodedToken.iss,
+      sub:
+        typeof decodedToken.sub === 'string'
+          ? parseInt(decodedToken.sub)
+          : decodedToken.sub,
+      first_name: decodedToken.first_name,
+      last_name: decodedToken.last_name,
+      email: decodedToken.email,
+      aud: decodedToken.aud,
+      iat: decodedToken.iat,
+      exp: decodedToken.exp,
+      scopes: decodedToken.scopes,
+      realm: decodedToken.realm,
+      provider: decodedToken.provider,
+    };
 
     const { data: publicKey } = await axios.get(
       `${authServer}public/public_key`,
@@ -420,7 +530,7 @@ export class AuthManager {
     const { data: revokedIds } = await axios.get(
       `${authServer}public/revoked_ids`,
     );
-    if(revokedIds.includes(decodedToken.id)){
+    if (revokedIds.includes(decodedToken.id)) {
       throw new Error('Token is revoked');
     }
     return userToken;
