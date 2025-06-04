@@ -256,7 +256,85 @@ export class AuthManager {
     return response.status === 200 || response.status === 201;
   }
 
-  public async changePassword(oldPassword: string, newPassword: string, email: string): Promise<boolean> {
+  /**
+   * Updates user account fields. Only sends fields present in the update object.
+   * For password, expects: { old: string, new: string }
+   */
+  public async updateAccount(update: {
+    firstName?: string,
+    lastName?: string,
+    email?: string,
+    password?: { old: string; new: string },
+  }): Promise<boolean> {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      throw new Error('Access token not found');
+    }
+
+    // Update name
+    if (update.firstName || update.lastName) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/update_profile`,
+        {
+          realm_name: this.realmName,
+          ...(update.firstName && { first_name: update.firstName }),
+          ...(update.lastName && { last_name: update.lastName }),
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    }
+
+    // Update email
+    if (update.email) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/change_email`,
+        {
+          realm_name: this.realmName,
+          email: update.email,
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    }
+
+    // Update password
+    if (update.password && update.email) {
+      const response = await axios.post(
+        `${this.authServer}auth/email/change_pass`,
+        {
+          realm_name: this.realmName,
+          email: update.email,
+          old_password: update.password.old,
+          new_password: update.password.new,
+        },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.data.error || response.data.errors) {
+        throw new Error(response.data.error || response.data.message);
+      }
+    } else if (update.password && !update.email) {
+      throw new Error('Email is required to change password');
+    }
+
+    return true;
+  }
+
+  public async changePassword(
+    oldPassword: string,
+    newPassword: string,
+    email: string,
+  ): Promise<boolean> {
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
       throw new Error('Access token not found');
