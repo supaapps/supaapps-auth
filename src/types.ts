@@ -30,7 +30,7 @@ export interface AuthManagerEvent {
 }
 
 export interface PlatformCheckResponse {
-    platform: Platforms[];
+    platforms: Platforms[];
 }
 
 export enum Platforms {

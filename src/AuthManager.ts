@@ -211,7 +211,7 @@ export class AuthManager {
 
     return response.status === 200
       ? response.data
-      : { platform: [] };
+      : { platforms: [] };
   }
 
   public async verifyEmail(
