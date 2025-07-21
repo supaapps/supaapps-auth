@@ -158,12 +158,26 @@ export class AuthManager {
   }
 
   public async isLoggedIn(): Promise<boolean> {
-    try {
-      await this.checkAccessToken();
-      return true;
-    } catch (error) {
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+
+    // If either token is missing, user is not logged in
+    if (!accessToken || !refreshToken) {
       return false;
     }
+
+    // If access token is expired, try to refresh
+    if (this.isTokenExpired(accessToken)) {
+      try {
+        await this.refreshAccessToken();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // If access token is valid
+    return true;
   }
 
   public async getAccessToken(
