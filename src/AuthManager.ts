@@ -53,7 +53,7 @@ export class AuthManager {
         .then((token) => {
           onStateChange({
             type: AuthEventType.INITALIZED_IN,
-            user: AuthManager.instance.tokenToPayload(token),
+            user: AuthManager.instance?.tokenToPayload(token!),
           });
         })
         .catch(() => {
@@ -143,7 +143,7 @@ export class AuthManager {
 
   public async checkAccessToken(
     isInitilization: boolean = false,
-  ): Promise<string> {
+  ): Promise<string|null> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && this.isTokenExpired(accessToken)) {
       return this.refreshAccessToken(isInitilization);
@@ -194,7 +194,7 @@ export class AuthManager {
 
   public async getAccessToken(
     mustBeLoggedIn: boolean = false,
-  ): Promise<string> {
+  ): Promise<string|null> {
     try {
       return await this.checkAccessToken();
     } catch (error) {
