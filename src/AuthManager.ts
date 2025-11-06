@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { createHash, randomBytes } from 'crypto';
+import { sha256 } from 'js-sha256';
 import {
   decode as jwtDecode,
   verify as jwtVerify,
@@ -81,17 +81,29 @@ export class AuthManager {
       .replace(/=+$/, '');
   }
 
+  private generateRandomString(length: number): string {
+    let text = "";
+    const possible =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for (let i = 0; i < length; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+
+    return text;
+  }
+
   private generatePKCEPair(): {
     verifier: string,
     challenge: string,
   } {
     const verifier =
       localStorage.getItem('codeVerifier') ??
-      this.toBase64Url(randomBytes(32).toString('base64'));
+      this.toBase64Url(this.generateRandomString(32));
     const challenge =
       localStorage.getItem('codeChallenge') ??
       this.toBase64Url(
-        createHash('sha256').update(verifier).digest('base64'),
+        btoa(String.fromCharCode(...sha256.array(verifier)))
       );
 
     localStorage.setItem('codeVerifier', verifier);
