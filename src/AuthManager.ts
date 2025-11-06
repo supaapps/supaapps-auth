@@ -1,9 +1,9 @@
 import axios, { AxiosResponse } from 'axios';
 import { sha256 } from 'js-sha256';
 import {
-  decode as jwtDecode,
-  verify as jwtVerify,
-} from 'jsonwebtoken'; // Ensure jsonwebtoken is correctly imported
+  jwtVerify,
+} from 'jose';
+import { jwtDecode } from 'jwt-decode';
 import {
   AuthEventType,
   AuthManagerEvent,
@@ -143,7 +143,7 @@ export class AuthManager {
 
   public async checkAccessToken(
     isInitilization: boolean = false,
-  ): Promise<string|null> {
+  ): Promise<string | null> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && this.isTokenExpired(accessToken)) {
       return this.refreshAccessToken(isInitilization);
@@ -194,7 +194,7 @@ export class AuthManager {
 
   public async getAccessToken(
     mustBeLoggedIn: boolean = false,
-  ): Promise<string|null> {
+  ): Promise<string | null> {
     try {
       return await this.checkAccessToken();
     } catch (error) {
@@ -518,9 +518,7 @@ export class AuthManager {
   ): Promise<UserTokenPayload> {
     // @todo tests missing for this static validation
     // @todo add caching for public key and algo
-    const decodedToken = jwtDecode(bearerToken, {
-      complete: true,
-    })?.payload as unknown as UserTokenPayload;
+    const decodedToken = jwtDecode(bearerToken) as unknown as UserTokenPayload;
 
     if (!decodedToken) {
       throw new Error('Not a valid jwt token');
