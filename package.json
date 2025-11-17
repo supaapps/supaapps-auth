@@ -3,12 +3,23 @@
   "version": "2.1.0",
   "description": "",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "test": "vitest",
-    "build": "tsc",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "watch": "tsup src/index.ts --format cjs,esm --dts --watch",
     "lint": "eslint src/ --ext .ts,.tsx"
   },
+  "files": [
+    "dist"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -31,6 +42,7 @@
     "eslint-config-supaapps": "^1.1.0",
     "eslint-plugin-import": "^2.29.1",
     "jsdom": "^27.2.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.10"
   }
