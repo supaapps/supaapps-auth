@@ -1,39 +1,38 @@
 import { sha256 } from "js-sha256";
+let nodeCrypto: typeof import("crypto") | undefined;
 
-export function toBase64Url(bytes: Uint8Array | ArrayBuffer): string {
-  let binary = "";
+if (typeof window === "undefined") {
+  nodeCrypto = await import("crypto");
+}
 
-  // Convert ArrayBuffer or Uint8Array to binary string
-  if (bytes instanceof ArrayBuffer) {
-    bytes = new Uint8Array(bytes);
-  }
-
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-
-  // Use btoa in browser, Buffer in Node if available
+export function toBase64Url(bytes: Uint8Array | Buffer): string {
   let base64: string;
-  if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
-    base64 = Buffer.from(bytes).toString("base64");
+
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(bytes)) {
+    // Node.js: Buffer -> base64
+    base64 = bytes.toString("base64");
   } else {
+    // Browser: Uint8Array -> base64
+    let binary = "";
+    const chunkSize = 0x8000; // 32k chunks to avoid stack overflow
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
     base64 = btoa(binary);
   }
 
-  // Convert to URL-safe Base64
+  // URL-safe Base64
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 // Generate PKCE code verifier
 export function generateCodeVerifier(length = 32): string {
-  let bytes: Uint8Array;
+  let bytes: Uint8Array | Buffer;
 
   if (typeof window === "undefined") {
-    // Node.js
-    const { randomBytes } = require("crypto");
-    bytes = randomBytes(length);
+    bytes = nodeCrypto!.randomBytes(length);
   } else {
-    // Browser
     bytes = new Uint8Array(length);
     window.crypto.getRandomValues(bytes);
   }

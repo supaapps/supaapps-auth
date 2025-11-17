@@ -2,19 +2,18 @@
   "name": "supaapps-auth",
   "version": "2.1.0",
   "description": "",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "type": "module",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": "./dist/index.js"
     }
   },
   "scripts": {
     "test": "vitest",
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "watch": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "watch": "tsup src/index.ts --format esm --dts --watch",
     "lint": "eslint src/ --ext .ts,.tsx"
   },
   "files": [
