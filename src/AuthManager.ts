@@ -1,5 +1,4 @@
 import axios, { AxiosResponse } from 'axios';
-import { sha256 } from 'js-sha256';
 import {
   jwtVerify,
 } from 'jose';
@@ -10,6 +9,7 @@ import {
   PlatformCheckResponse,
   UserTokenPayload,
 } from './types';
+import { generateCodeChallenge, generateCodeVerifier } from './utils/pkce';
 
 export class AuthManager {
   private static instance: AuthManager | null = null;
@@ -74,37 +74,16 @@ export class AuthManager {
     return JSON.parse(atob(token.split('.')[1]));
   }
 
-  private toBase64Url(base64String: string): string {
-    return base64String
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-  }
-
-  private generateRandomString(length: number): string {
-    let text = "";
-    const possible =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-    for (let i = 0; i < length; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-
-    return text;
-  }
-
   private generatePKCEPair(): {
     verifier: string,
     challenge: string,
   } {
     const verifier =
       localStorage.getItem('codeVerifier') ??
-      this.toBase64Url(this.generateRandomString(32));
+      generateCodeVerifier();
     const challenge =
       localStorage.getItem('codeChallenge') ??
-      this.toBase64Url(
-        btoa(String.fromCharCode(...sha256.array(verifier)))
-      );
+      generateCodeChallenge(verifier);
 
     localStorage.setItem('codeVerifier', verifier);
     localStorage.setItem('codeChallenge', challenge);
