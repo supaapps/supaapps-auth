@@ -1,15 +1,15 @@
 import axios, { AxiosResponse } from 'axios';
-import { createHash, randomBytes } from 'crypto';
 import {
-  decode as jwtDecode,
-  verify as jwtVerify,
-} from 'jsonwebtoken'; // Ensure jsonwebtoken is correctly imported
+  jwtVerify,
+} from 'jose';
+import { jwtDecode } from 'jwt-decode';
 import {
   AuthEventType,
   AuthManagerEvent,
   PlatformCheckResponse,
   UserTokenPayload,
 } from './types';
+import { generateCodeChallenge, generateCodeVerifier } from './utils/pkce';
 
 export class AuthManager {
   private static instance: AuthManager | null = null;
@@ -53,7 +53,7 @@ export class AuthManager {
         .then((token) => {
           onStateChange({
             type: AuthEventType.INITALIZED_IN,
-            user: AuthManager.instance.tokenToPayload(token),
+            user: AuthManager.instance?.tokenToPayload(token!),
           });
         })
         .catch(() => {
@@ -74,25 +74,16 @@ export class AuthManager {
     return JSON.parse(atob(token.split('.')[1]));
   }
 
-  private toBase64Url(base64String: string): string {
-    return base64String
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-  }
-
   private generatePKCEPair(): {
     verifier: string,
     challenge: string,
   } {
     const verifier =
       localStorage.getItem('codeVerifier') ??
-      this.toBase64Url(randomBytes(32).toString('base64'));
+      generateCodeVerifier();
     const challenge =
       localStorage.getItem('codeChallenge') ??
-      this.toBase64Url(
-        createHash('sha256').update(verifier).digest('base64'),
-      );
+      generateCodeChallenge(verifier);
 
     localStorage.setItem('codeVerifier', verifier);
     localStorage.setItem('codeChallenge', challenge);
@@ -131,7 +122,7 @@ export class AuthManager {
 
   public async checkAccessToken(
     isInitilization: boolean = false,
-  ): Promise<string> {
+  ): Promise<string | null> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && this.isTokenExpired(accessToken)) {
       return this.refreshAccessToken(isInitilization);
@@ -182,7 +173,7 @@ export class AuthManager {
 
   public async getAccessToken(
     mustBeLoggedIn: boolean = false,
-  ): Promise<string> {
+  ): Promise<string | null> {
     try {
       return await this.checkAccessToken();
     } catch (error) {
@@ -506,9 +497,7 @@ export class AuthManager {
   ): Promise<UserTokenPayload> {
     // @todo tests missing for this static validation
     // @todo add caching for public key and algo
-    const decodedToken = jwtDecode(bearerToken, {
-      complete: true,
-    })?.payload as unknown as UserTokenPayload;
+    const decodedToken = jwtDecode(bearerToken) as unknown as UserTokenPayload;
 
     if (!decodedToken) {
       throw new Error('Not a valid jwt token');
