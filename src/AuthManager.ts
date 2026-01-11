@@ -79,14 +79,14 @@ export class AuthManager {
     challenge: string,
   } {
     const verifier =
-      localStorage.getItem('codeVerifier') ??
+      localStorage.getItem('code_verifier') ??
       generateCodeVerifier();
     const challenge =
-      localStorage.getItem('codeChallenge') ??
+      localStorage.getItem('code_challenge') ??
       generateCodeChallenge(verifier);
 
-    localStorage.setItem('codeVerifier', verifier);
-    localStorage.setItem('codeChallenge', challenge);
+    localStorage.setItem('code_verifier', verifier);
+    localStorage.setItem('code_challenge', challenge);
 
     return { verifier, challenge };
   }
@@ -415,19 +415,21 @@ export class AuthManager {
     response: AxiosResponse,
     byRefresh: boolean,
   ): void {
+    const eventType =
+      byRefresh
+        ? AuthEventType.USER_UPDATED
+        : AuthEventType.USER_LOGGED_IN;
+    const userPayload = this.tokenToPayload(response.data.access_token);
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem(
       'refresh_token',
       response.data.refresh_token,
     );
     this.onStateChange({
-      type: byRefresh
-        ? AuthEventType.USER_UPDATED
-        : AuthEventType.USER_LOGGED_IN,
-      user: this.tokenToPayload(response.data.access_token),
+      type: eventType,
+      user: userPayload,
     });
-    const user = this.tokenToPayload(response.data.access_token);
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(userPayload));
   }
 
   public async loginUsingEmail(
@@ -450,7 +452,7 @@ export class AuthManager {
 
   public async loginUsingPkce(code: string): Promise<void> {
     try {
-      const codeVerifier = localStorage.getItem('codeVerifier');
+      const codeVerifier = localStorage.getItem('code_verifier');
       if (!codeVerifier) {
         throw new Error('Code verifier not found');
       }
@@ -466,9 +468,31 @@ export class AuthManager {
       );
       this.saveTokens(response, false);
     } finally {
-      localStorage.removeItem('codeVerifier');
-      localStorage.removeItem('codeChallenge');
+      localStorage.removeItem('code_verifier');
+      localStorage.removeItem('code_challenge');
     }
+  }
+
+  public async loginUsingImpersonation(
+    code: string,
+    redirectUri?: string,
+  ): Promise<void> {
+    const response = await axios.post(
+      `${this.authServer}auth/impersonation_exchange`,
+      {
+        code,
+        ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+      },
+    );
+    if (response.data.message || response.data.error) {
+      throw new Error(response.data.message || response.data.error);
+    }
+
+    if (!response.data.access_token) {
+      throw new Error('Something went wrong');
+    }
+
+    this.saveTokens(response, false);
   }
 
   public async logout(): Promise<void> {

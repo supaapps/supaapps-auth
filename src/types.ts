@@ -42,4 +42,5 @@ export enum Platforms {
     APPLE = 'apple',
     LINKEDIN = 'linkedin',
     MICROSOFT = 'microsoft',
+    SUPPORT = 'support',
 }

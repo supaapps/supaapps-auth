@@ -59,11 +59,11 @@ describe('AuthManager Tests', () => {
     expect(pkce.verifier).toMatch(/[\w-_=]+/);
     expect(pkce.challenge).toMatch(/[\w-_=]+/);
     expect(localStorage.setItem).toHaveBeenCalledWith(
-      'codeVerifier',
+      'code_verifier',
       expect.anything(),
     );
     expect(localStorage.setItem).toHaveBeenCalledWith(
-      'codeChallenge',
+      'code_challenge',
       expect.anything(),
     );
   });
@@ -147,7 +147,7 @@ describe('AuthManager Tests', () => {
   });
 
   it('logs in using PKCE and updates local storage', async () => {
-    localStorage.setItem('codeVerifier', 'mockCodeVerifier');
+    localStorage.setItem('code_verifier', 'mockCodeVerifier');
     /*
             {
             "sub": "1234567890",
