@@ -14,6 +14,8 @@ import { generateCodeChallenge, generateCodeVerifier } from './utils/pkce';
 export class AuthManager {
   private static instance: AuthManager | null = null;
 
+  private readonly tokenExpiryLeewaySeconds = 10;
+
   private authServer: string;
 
   private realmName: string;
@@ -125,6 +127,9 @@ export class AuthManager {
   ): Promise<string | null> {
     const accessToken = localStorage.getItem('access_token');
     if (accessToken && this.isTokenExpired(accessToken)) {
+      console.info(
+        '[AuthManager] Access token expired or near expiry; refreshing.',
+      );
       return this.refreshAccessToken(isInitilization);
     }
     return accessToken;
@@ -132,7 +137,9 @@ export class AuthManager {
 
   private isTokenExpired(token: string): boolean {
     const decoded = this.tokenToPayload(token);
-    return decoded.exp < Date.now() / 1000;
+    const nowSeconds = Date.now() / 1000;
+    return decoded.exp <=
+      nowSeconds + this.tokenExpiryLeewaySeconds;
   }
 
   public async mustBeLoggedIn(): Promise<void> {
@@ -160,6 +167,9 @@ export class AuthManager {
     // If access token is expired, try to refresh
     if (this.isTokenExpired(accessToken)) {
       try {
+        console.info(
+          '[AuthManager] Access token expired or near expiry; refreshing.',
+        );
         await this.refreshAccessToken();
         return true;
       } catch {
