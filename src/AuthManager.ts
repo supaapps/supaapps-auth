@@ -73,7 +73,11 @@ export class AuthManager {
   }
 
   private tokenToPayload(token: string): UserTokenPayload {
-    return JSON.parse(atob(token.split('.')[1]));
+    const payload = JSON.parse(atob(token.split('.')[1])) as UserTokenPayload;
+    return {
+      ...payload,
+      is_org_verified: payload.is_org_verified ?? false,
+    };
   }
 
   private generatePKCEPair(): {
@@ -547,6 +551,7 @@ export class AuthManager {
       first_name: decodedToken.first_name,
       last_name: decodedToken.last_name,
       email: decodedToken.email,
+      is_org_verified: decodedToken.is_org_verified ?? false,
       aud: decodedToken.aud,
       iat: decodedToken.iat,
       exp: decodedToken.exp,
